@@ -132,11 +132,11 @@ def train_model(config_path: str) -> str:
         logger.info(f"Starting model training with config: {config_path}")
         
         # Option 1: Import and call the function directly
-        from kohonen_production import train_model
+        from som import train_model
         train_model(config_path)
         
         # Option 2: Run as a subprocess
-        # cmd = [sys.executable, 'kohonen_production.py', '--config', config_path]
+        # cmd = [sys.executable, 'som.py', '--config', config_path]
         # subprocess.run(cmd, check=True)
         
         # Load config to get output path
@@ -234,7 +234,7 @@ def register_model(model_path: str, metrics: dict, config_path: str) -> str:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
         
-        from kohonen_production import SelfOrganizingMap
+        from som import SelfOrganizingMap
         som = SelfOrganizingMap.load(model_path)
         
         # Create sample data for signature
