@@ -1,0 +1,56 @@
+# docker-compose.yml
+version: '3'
+
+services:
+  mlflow-server:
+    image: ghcr.io/mlflow/mlflow:v2.8.0
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow:/mlflow
+    command: mlflow server --backend-store-uri sqlite:///mlflow/mlflow.db --default-artifact-root ./mlflow/artifacts --host 0.0.0.0
+    networks:
+      - som-network
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: som_results
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - som-network
+
+  som-pipeline:
+    build: .
+    container_name: som-pipeline
+    depends_on:
+      - mlflow-server
+      - postgres
+    volumes:
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: som_results
+    command: ["--config", "${CONFIG_FILE:-configs/default.yaml}", "--stage", "${STAGE:-all}"]
+    networks:
+      - som-network
+
+networks:
+  som-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

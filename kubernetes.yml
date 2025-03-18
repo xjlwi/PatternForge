@@ -1,0 +1,155 @@
+# kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: som-pipeline
+  labels:
+    app: som-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: som-pipeline
+  template:
+    metadata:
+      labels:
+        app: som-pipeline
+    spec:
+      containers:
+      - name: som-pipeline
+        image: ${CONTAINER_REGISTRY}/som-pipeline:${IMAGE_TAG}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-service:5000"
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: DB_NAME
+          value: "som_results"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configs
+        - name: data-volume
+          mountPath: /app/data
+        - name: output-volume
+          mountPath: /app/outputs
+      volumes:
+      - name: config-volume
+        configMap:
+          name: som-config
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: som-data-pvc
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: som-output-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: som-service
+spec:
+  selector:
+    app: som-pipeline
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: som-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: som-output-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: som-config
+data:
+  default.yaml: |
+    experiment_name: "SOM_RGB_Training"
+    data:
+      path: "/app/data/input_data.npy"
+      normalize: true
+    model:
+      width: 32
+      height: 32
+      input_dim: 3
+      alpha0: 0.1
+    training:
+      n_iterations: 5000
+      batch_size: 32
+      evaluation_interval: 100
+    output:
+      base_dir: "/app/outputs"
+      save_checkpoints: true
+      checkpoint_interval: 1000
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: som-training-cron
+spec:
+  schedule: "0 2 * * *"  # Run at 2:00 AM daily
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: som-pipeline
+            image: ${CONTAINER_REGISTRY}/som-pipeline:${IMAGE_TAG}
+            args: ["--config", "/app/configs/default.yaml", "--stage", "all"]
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/configs
+            - name: data-volume
+              mountPath: /app/data
+            - name: output-volume
+              mountPath: /app/outputs
+          volumes:
+          - name: config-volume
+            configMap:
+              name: som-config
+          - name: data-volume
+            persistentVolumeClaim:
+              claimName: som-data-pvc
+          - name: output-volume
+            persistentVolumeClaim:
+              claimName: som-output-pvc
+          restartPolicy: OnFailure
