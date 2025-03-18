@@ -1,0 +1,207 @@
+# .github/workflows/som-pipeline.yml
+name: SOM Training Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'configs/**'
+      - '.github/workflows/som-pipeline.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'configs/**'
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Configuration file path'
+        required: true
+        default: 'configs/default.yaml'
+      stage:
+        description: 'Pipeline stage to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - prepare
+          - train
+          - evaluate
+          - register
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        pytest tests/ --cov=src --cov-report=xml
+    
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort
+    
+    - name: Run linters
+      run: |
+        flake8 src/ tests/
+        black --check src/ tests/
+        isort --check-only src/ tests/
+
+  build:
+    name: Build Package
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build wheel
+    
+    - name: Build package
+      run: |
+        python -m build
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: dist/
+
+  deploy-dev:
+    name: Deploy to Development
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: development
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist
+        path: dist/
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install dist/*.whl
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    
+    - name: Run pipeline
+      run: |
+        python -m src.pipeline --config ${{ github.event.inputs.config_file || 'configs/dev.yaml' }} --stage ${{ github.event.inputs.stage || 'all' }}
+    
+    - name: Upload artifacts to S3
+      run: |
+        aws s3 sync outputs/ s3://${{ secrets.DEV_BUCKET_NAME }}/som-pipeline/outputs/
+    
+    - name: Update model registry
+      run: |
+        # Command to update model registry - implementation depends on your specific setup
+        echo "Updating model registry in development environment"
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: [deploy-dev]
+    runs-on: ubuntu-latest
+    environment: production
+    # Manual approval required before deploying to production
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist
+        path: dist/
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install dist/*.whl
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    
+    - name: Run pipeline with production config
+      run: |
+        python -m src.pipeline --config configs/prod.yaml --stage all
+    
+    - name: Upload artifacts to S3
+      run: |
+        aws s3 sync outputs/ s3://${{ secrets.PROD_BUCKET_NAME }}/som-pipeline/outputs/
+    
+    - name: Update production model registry
+      run: |
+        # Command to update model registry - implementation depends on your specific setup
+        echo "Updating model registry in production environment"

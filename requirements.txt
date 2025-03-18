@@ -1,0 +1,6 @@
+fastapi
+mlflow
+numpy
+matplotlib
+pydantic
+yml
