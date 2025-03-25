@@ -168,3 +168,4 @@ session_store.db
 
 # Ignore local testing folder
 pdf_parts/
+app/mlruns/**/* 
