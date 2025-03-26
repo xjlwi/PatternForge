@@ -169,3 +169,6 @@ session_store.db
 # Ignore local testing folder
 pdf_parts/
 app/mlruns/**/* 
+*.css
+app/outputs/*/models/*.joblib
+app/outputs/*/visualizations/*.png
