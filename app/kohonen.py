@@ -43,11 +43,11 @@ def train(input_data, n_max_iterations, width, height):
 
     return weights
 
-if __name__ == '__main__':
-    np.random.seed(42)  # For reproducibility
-    input_data = np.random.random((10, 3))  # Ensure shape (10,3)
-    image_data = train(input_data, 100, 10, 10)
-    print("Training complete. Weights shape:", image_data.shape)
+# if __name__ == '__main__':
+#     np.random.seed(42)  # For reproducibility
+#     input_data = np.random.random((10, 3))  # Ensure shape (10,3)
+#     image_data = train(input_data, 100, 10, 10)
+#     print("Training complete. Weights shape:", image_data.shape)
 
 # if __name__ == '__main__':
 #     # Generate data
