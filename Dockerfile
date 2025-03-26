@@ -14,13 +14,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY src/ ./src/
-COPY configs/ ./configs/
+COPY . ./src/
 
 # Set environment variables
 ENV PYTHONPATH="/app:${PYTHONPATH}"
 ENV MLFLOW_TRACKING_URI="http://mlflow-server:5000"
 
 # Set the entry point
-ENTRYPOINT ["python", "-m", "src.pipeline"]
-CMD ["--config", "configs/default.yaml", "--stage", "all"]
+ENTRYPOINT ["python", "-m", "app.main"]
+CMD ["--config", "som-config-file.yml", "--stage", "all"]

@@ -34,7 +34,6 @@ services:
       - mlflow-server
       - postgres
     volumes:
-      - ./configs:/app/configs
       - ./data:/app/data
       - ./outputs:/app/outputs
     environment:
