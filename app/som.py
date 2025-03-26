@@ -313,7 +313,7 @@ def train_model(config_path: str) -> None:
     experiment_name = config.get("experiment_name", "SOM_Training")
     mlflow.set_experiment(experiment_name)
 
-    with mlflow.start_run(run_name=f"SOM_{timestamp}"):
+    with mlflow.start_run(run_name=f"SOM_{timestamp}", nested=True):
         # Log parameters
         mlflow.log_params(
             {
@@ -370,9 +370,9 @@ def train_model(config_path: str) -> None:
             raise
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a Self-Organizing Map model")
-    parser.add_argument("--config", type=str, required=True, help="Path to yaml file")
-    args = parser.parse_args()
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Train a Self-Organizing Map model")
+#     parser.add_argument("--config", type=str, required=True, help="Path to yaml file")
+#     args = parser.parse_args()
 
-    train_model(args.config)
+#     train_model(args.config)
